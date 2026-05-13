@@ -120,6 +120,7 @@ pub enum Error {
     EmptyChain,
     NotPkcs8,
     AlpnTooLong,
+    InvalidLabel,
 }
 
 impl error::Error for Error {
@@ -130,6 +131,7 @@ impl error::Error for Error {
             Error::EmptyChain => None,
             Error::NotPkcs8 => None,
             Error::AlpnTooLong => None,
+            Error::InvalidLabel => None,
         }
     }
 }
@@ -146,6 +148,7 @@ impl fmt::Display for Error {
             ),
             Error::NotPkcs8 => write!(fmt, "expected PKCS#8 PEM"),
             Error::AlpnTooLong => write!(fmt, "ALPN too long"),
+            Error::InvalidLabel => write!(fmt, "TLS exporter label must be valid UTF-8"),
         }
     }
 }
@@ -462,6 +465,17 @@ impl<S: io::Read + io::Write> TlsStream<S> {
             .ssl()
             .selected_alpn_protocol()
             .map(|alpn| alpn.to_vec()))
+    }
+
+    pub fn export_keying_material(
+        &self,
+        out: &mut [u8],
+        label: &[u8],
+        context: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        let label = std::str::from_utf8(label).map_err(|_| Error::InvalidLabel)?;
+        self.0.ssl().export_keying_material(out, label, context)?;
+        Ok(())
     }
 
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {
